@@ -8,7 +8,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoginForm } from "@/components/auth/login-form";
 import { SignupForm } from "@/components/auth/signup-form";
-import { Utensils } from "lucide-react";
+import { Target } from "lucide-react";
 
 export default function AuthenticationPage() {
   return (
@@ -17,9 +17,9 @@ export default function AuthenticationPage() {
         <Card className="shadow-lg">
           <CardHeader className="text-center">
             <div className="flex justify-center items-center mb-4">
-              <Utensils className="h-12 w-12 text-primary" />
+              <Target className="h-12 w-12 text-primary" />
             </div>
-            <CardTitle className="text-2xl font-bold font-headline">KDS Tracker</CardTitle>
+            <CardTitle className="text-2xl font-bold font-headline">Lead Tracker</CardTitle>
             <CardDescription>
               Bem-vindo! Faça login ou crie uma conta para continuar.
             </CardDescription>
