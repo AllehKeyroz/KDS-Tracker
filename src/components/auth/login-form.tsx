@@ -1,9 +1,12 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
+import type { AuthError } from "firebase/auth";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +20,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { GoogleIcon } from "@/components/icons/google-icon";
+import { signInWithEmail, signInWithGoogle, getFirebaseErrorMessage } from "@/lib/auth";
+import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Por favor, insira um email válido." }),
@@ -26,6 +31,8 @@ const formSchema = z.object({
 export function LoginForm() {
   const router = useRouter();
   const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -35,23 +42,46 @@ export function LoginForm() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    // Simulate API call
-    console.log(values);
-    toast({
-      title: "Login bem-sucedido!",
-      description: "Redirecionando para o painel.",
-    });
-    router.push("/dashboard");
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    setIsLoading(true);
+    try {
+      await signInWithEmail(values.email, values.password);
+      toast({
+        title: "Login bem-sucedido!",
+        description: "Redirecionando para o painel.",
+      });
+      router.push("/dashboard");
+    } catch (error) {
+      const firebaseError = error as AuthError;
+      toast({
+        title: "Erro no login",
+        description: getFirebaseErrorMessage(firebaseError),
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   }
   
-  function onGoogleLogin() {
-    // Simulate Google login
-    toast({
-      title: "Login com Google bem-sucedido!",
-      description: "Redirecionando para o painel.",
-    });
-    router.push("/dashboard");
+  async function onGoogleLogin() {
+    setIsGoogleLoading(true);
+    try {
+      await signInWithGoogle();
+      toast({
+        title: "Login com Google bem-sucedido!",
+        description: "Redirecionando para o painel.",
+      });
+      router.push("/dashboard");
+    } catch (error) {
+      const firebaseError = error as AuthError;
+      toast({
+        title: "Erro no login com Google",
+        description: getFirebaseErrorMessage(firebaseError),
+        variant: "destructive",
+      });
+    } finally {
+      setIsGoogleLoading(false);
+    }
   }
 
   return (
@@ -65,7 +95,7 @@ export function LoginForm() {
               <FormItem>
                 <FormLabel>Email</FormLabel>
                 <FormControl>
-                  <Input placeholder="seu@email.com" {...field} />
+                  <Input placeholder="seu@email.com" {...field} disabled={isLoading} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -78,13 +108,14 @@ export function LoginForm() {
               <FormItem>
                 <FormLabel>Senha</FormLabel>
                 <FormControl>
-                  <Input type="password" placeholder="Sua senha" {...field} />
+                  <Input type="password" placeholder="Sua senha" {...field} disabled={isLoading} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-          <Button type="submit" className="w-full">
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Entrar
           </Button>
         </form>
@@ -101,8 +132,12 @@ export function LoginForm() {
         </div>
       </div>
 
-      <Button variant="outline" className="w-full" onClick={onGoogleLogin}>
-        <GoogleIcon className="mr-2 h-5 w-5" />
+      <Button variant="outline" className="w-full" onClick={onGoogleLogin} disabled={isGoogleLoading}>
+        {isGoogleLoading ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        ) : (
+            <GoogleIcon className="mr-2 h-5 w-5" />
+        )}
         Entrar com Google
       </Button>
     </div>
