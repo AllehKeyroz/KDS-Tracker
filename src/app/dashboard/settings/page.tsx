@@ -21,6 +21,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { db } from "@/lib/firebase";
@@ -43,6 +45,7 @@ export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isFormLoading, setIsFormLoading] = useState(true);
   const [webhookUrl, setWebhookUrl] = useState("");
+  const [embedUrls, setEmbedUrls] = useState({ leads: "", analytics: "" });
 
   const form = useForm<SettingsFormValues>({
     resolver: zodResolver(settingsFormSchema),
@@ -54,16 +57,20 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (user && typeof window !== "undefined") {
-      const url = `${window.location.origin}/api/webhook/${user.uid}`;
-      setWebhookUrl(url);
+      const origin = window.location.origin;
+      setWebhookUrl(`${origin}/api/webhook/${user.uid}`);
+      setEmbedUrls({
+        leads: `<iframe src="${origin}/embed/leads/${user.uid}" width="100%" height="600px" frameborder="0"></iframe>`,
+        analytics: `<iframe src="${origin}/embed/analytics/${user.uid}" width="100%" height="800px" frameborder="0"></iframe>`,
+      });
     }
   }, [user]);
 
-  const copyToClipboard = (text: string) => {
+  const copyToClipboard = (text: string, message: string) => {
     navigator.clipboard.writeText(text);
     toast({
       title: "Copiado!",
-      description: "A URL do webhook foi copiada para a área de transferência.",
+      description: message,
     });
   };
 
@@ -140,13 +147,58 @@ export default function SettingsPage() {
               ) : (
                 <Skeleton className="h-10 w-full" />
               )}
-              <Button onClick={() => copyToClipboard(webhookUrl)} size="icon" aria-label="Copiar URL" disabled={!webhookUrl}>
+              <Button onClick={() => copyToClipboard(webhookUrl, "A URL do webhook foi copiada.")} size="icon" aria-label="Copiar URL" disabled={!webhookUrl}>
                 <Copy className="h-4 w-4" />
               </Button>
             </div>
             <p className="mt-3 text-sm text-muted-foreground">
               Para a verificação inicial no painel da Meta, use o seguinte token: <code className="bg-muted px-1.5 py-0.5 rounded-sm font-semibold">um_token_secreto_para_verificacao</code>
             </p>
+          </CardContent>
+        </Card>
+
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Embed dos Painéis</CardTitle>
+            <CardDescription>
+              Copie o código abaixo para incorporar os painéis de leads ou análises em outro site usando um iframe.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="leads">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="leads">Painel de Leads</TabsTrigger>
+                <TabsTrigger value="analytics">Painel de Análises</TabsTrigger>
+              </TabsList>
+              <TabsContent value="leads" className="mt-4">
+                <div className="space-y-2">
+                  <Textarea
+                    readOnly
+                    value={embedUrls.leads}
+                    className="h-24 font-mono text-xs"
+                    aria-label="Código de embed do painel de leads"
+                  />
+                  <Button onClick={() => copyToClipboard(embedUrls.leads, "O código de embed foi copiado.")} disabled={!embedUrls.leads}>
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copiar Código
+                  </Button>
+                </div>
+              </TabsContent>
+              <TabsContent value="analytics" className="mt-4">
+                 <div className="space-y-2">
+                  <Textarea
+                    readOnly
+                    value={embedUrls.analytics}
+                    className="h-24 font-mono text-xs"
+                    aria-label="Código de embed do painel de análises"
+                  />
+                  <Button onClick={() => copyToClipboard(embedUrls.analytics, "O código de embed foi copiado.")} disabled={!embedUrls.analytics}>
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copiar Código
+                  </Button>
+                </div>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
 
