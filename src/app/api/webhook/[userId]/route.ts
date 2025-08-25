@@ -187,11 +187,6 @@ export async function POST(req: NextRequest, { params }: { params: { userId: str
         }
     }
 
-
-    const adId = get(payload, 'contact.lastAttributionSource.adId', get(payload, 'customData.Ad / Post Id', ''));
-    
-    const campaignInfo = await getCampaignName(adId, accessToken);
-    
     const payloadSource = get(payload, 'source', '');
     const contactSource = get(payload, 'contact_source', '');
     const mediumValue = get(payload, 'contact.lastAttributionSource.medium', get(payload, 'contact.attributionSource.medium', get(payload, 'attributionSource.medium', 'Não disponível')));
@@ -203,9 +198,20 @@ export async function POST(req: NextRequest, { params }: { params: { userId: str
     } else if (payloadSource.toLowerCase().includes('widget') || contactSource.toLowerCase().includes('widget') || mediumValue.toLowerCase().includes('widget')) {
       originValue = 'Site';
     } else {
-      originValue = get(payload, 'contact.lastAttributionSource.sessionSource', get(payload, 'contact.attributionSource.sessionSource', get(payload, 'attributionSource.sessionSource', 'Não disponível')));
+      const sessionSource = get(payload, 'contact.lastAttributionSource.sessionSource', get(payload, 'contact.attributionSource.sessionSource', get(payload, 'attributionSource.sessionSource', 'Não disponível')));
+      if (sessionSource.toLowerCase() === 'paid social') {
+        originValue = 'Mídia Paga';
+      } else {
+        originValue = sessionSource;
+      }
     }
 
+    const isOrganic = originValue === 'Bio Insta' || originValue === 'Site';
+
+    let adId = isOrganic ? '' : get(payload, 'contact.lastAttributionSource.adId', get(payload, 'customData.Ad / Post Id', ''));
+    
+    const campaignInfo = await getCampaignName(adId, accessToken);
+    
     const leadData: Omit<Lead, 'receivedAt'> = {
       dateCreated: get(payload, 'date_created', new Date().toISOString()),
       leadName: get(payload, 'full_name', 'Nome não disponível'),
@@ -213,15 +219,15 @@ export async function POST(req: NextRequest, { params }: { params: { userId: str
       origin: originValue,
       medium: mediumValue,
       source: 'Instagram/Facebook',
-      campaign: campaignInfo.name,
+      campaign: isOrganic ? 'Orgânico' : campaignInfo.name,
       adId: adId,
-      mediaType: get(payload, 'customData.Medya Type Of Ad / Post', 'Não disponível'),
-      adLink: get(payload, 'customData.Ad / Post URL', '#'),
-      adThumbnail: get(payload, 'customData.Thumbnail Url Of Ad / Post', ''),
-      adVideo: get(payload, 'customData.Video Url Of Ad / Post', ''),
-      adTitle: get(payload, 'customData.Head Line Of Ad / Post', 'Não disponível'),
-      adDescription: get(payload, 'customData.Body Of Ad / Post', 'Não disponível'),
-      ctwaClickId: get(payload, 'contact.lastAttributionSource.ctwa_clid', get(payload, 'customData.Click-To-Whatsapp Click ID', 'Não disponível')),
+      mediaType: isOrganic ? 'Não disponível' : get(payload, 'customData.Medya Type Of Ad / Post', 'Não disponível'),
+      adLink: isOrganic ? '#' : get(payload, 'customData.Ad / Post URL', '#'),
+      adThumbnail: isOrganic ? '' : get(payload, 'customData.Thumbnail Url Of Ad / Post', ''),
+      adVideo: isOrganic ? '' : get(payload, 'customData.Video Url Of Ad / Post', ''),
+      adTitle: isOrganic ? 'Não disponível' : get(payload, 'customData.Head Line Of Ad / Post', 'Não disponível'),
+      adDescription: isOrganic ? 'Não disponível' : get(payload, 'customData.Body Of Ad / Post', 'Não disponível'),
+      ctwaClickId: isOrganic ? 'Não disponível' : get(payload, 'contact.lastAttributionSource.ctwa_clid', get(payload, 'customData.Click-To-Whatsapp Click ID', 'Não disponível')),
       workflow: `${get(payload, 'workflow.name', 'N/A')} (${get(payload, 'workflow.id', 'N/A')})`,
       rawPayload: payload,
       metaApiResponse: campaignInfo.apiResponses,

@@ -222,6 +222,7 @@ export default function DashboardPage() {
                     <TableHead>Telefone</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Origem</TableHead>
+                    <TableHead>Canal</TableHead>
                     <TableHead>Campanha</TableHead>
                     <TableHead>Anúncio (ID)</TableHead>
                     <TableHead>Criativo</TableHead>
@@ -234,12 +235,12 @@ export default function DashboardPage() {
                   {isLoadingLeads ? (
                      Array.from({ length: 5 }).map((_, index) => (
                         <TableRow key={index}>
-                          <TableCell colSpan={11}><Skeleton className="h-8 w-full" /></TableCell>
+                          <TableCell colSpan={12}><Skeleton className="h-8 w-full" /></TableCell>
                         </TableRow>
                       ))
                   ) : leads.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={11} className="h-24 text-center">
+                      <TableCell colSpan={12} className="h-24 text-center">
                         Aguardando o primeiro lead...
                       </TableCell>
                     </TableRow>
@@ -274,6 +275,7 @@ export default function DashboardPage() {
                            </Badge>
                         </TableCell>
                         <TableCell>{lead.origin}</TableCell>
+                        <TableCell>{lead.medium}</TableCell>
                         <TableCell><TruncatedCell text={lead.campaign} maxLength={20} /></TableCell>
                         <TableCell>
                           <a 
