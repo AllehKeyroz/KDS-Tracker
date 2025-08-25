@@ -7,12 +7,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, orderBy, query, Timestamp, where, doc, getDoc } from "firebase/firestore";
-import { ExternalLink, Video, Image as ImageIcon } from "lucide-react";
-import { useEffect, useState, useCallback, use } from "react";
+import { ExternalLink, Video, Image as ImageIcon, Download, ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useState, useCallback, useMemo, use } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type LeadStatus = 'Aberto' | 'Ganho' | 'Perdido' | 'Abandonado';
 
@@ -40,12 +41,19 @@ interface UserSettings {
   whitelabelDomain?: string;
 }
 
+const LEADS_PER_PAGE = 50;
+
 export default function EmbedLeadsPage({ params }: { params: { userId: string } }) {
   const { userId } = use(params);
-  const [leads, setLeads] = useState<Lead[]>([]);
+  const [allLeads, setAllLeads] = useState<Lead[]>([]);
   const [isLoadingLeads, setIsLoadingLeads] = useState(true);
   const [userSettings, setUserSettings] = useState<UserSettings>({});
   const { toast } = useToast();
+
+  const [campaignFilter, setCampaignFilter] = useState("all");
+  const [channelFilter, setChannelFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<LeadStatus | "all">("all");
+  const [currentPage, setCurrentPage] = useState(1);
   
   const loadUserSettings = useCallback(async () => {
     if (!userId) return;
@@ -100,7 +108,7 @@ export default function EmbedLeadsPage({ params }: { params: { userId: string } 
           status: data.status || 'Aberto',
         });
       });
-      setLeads(receivedLeads);
+      setAllLeads(receivedLeads);
       setIsLoadingLeads(false);
     }, (error) => {
       console.error("Error fetching leads:", error);
@@ -114,6 +122,75 @@ export default function EmbedLeadsPage({ params }: { params: { userId: string } 
 
     return () => unsubscribe();
   }, [userId, toast, loadUserSettings]);
+
+  const filteredLeads = useMemo(() => {
+    return allLeads.filter(lead => {
+      const campaignMatch = campaignFilter === 'all' || lead.campaign === campaignFilter;
+      const channelMatch = channelFilter === 'all' || lead.medium === channelFilter;
+      const statusMatch = statusFilter === 'all' || lead.status === statusFilter;
+      return campaignMatch && channelMatch && statusMatch;
+    });
+  }, [allLeads, campaignFilter, channelFilter, statusFilter]);
+
+  const paginatedLeads = useMemo(() => {
+    const startIndex = (currentPage - 1) * LEADS_PER_PAGE;
+    return filteredLeads.slice(startIndex, startIndex + LEADS_PER_PAGE);
+  }, [filteredLeads, currentPage]);
+
+  const totalPages = Math.ceil(filteredLeads.length / LEADS_PER_PAGE);
+
+  const campaigns = useMemo(() => [...new Set(allLeads.map(lead => lead.campaign))], [allLeads]);
+  const channels = useMemo(() => [...new Set(allLeads.map(lead => lead.medium))], [allLeads]);
+  const statuses: LeadStatus[] = ['Aberto', 'Ganho', 'Perdido', 'Abandonado'];
+
+  const handleExportCSV = () => {
+    if (filteredLeads.length === 0) {
+      toast({
+        title: "Nenhum lead para exportar",
+        description: "A lista de leads filtrada está vazia.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const headers = [
+      "Data/Hora", "Nome", "Telefone", "Status", "Origem", "Canal",
+      "Campanha", "Anuncio (ID)", "Criativo (Tipo)", "Titulo", "Descricao"
+    ];
+    
+    const csvContent = [
+      headers.join(','),
+      ...filteredLeads.map(lead => [
+        `"${lead.receivedAt.toLocaleString()}"`,
+        `"${lead.leadName.replace(/"/g, '""')}"`,
+        `"${lead.leadPhone}"`,
+        `"${lead.status}"`,
+        `"${lead.origin}"`,
+        `"${lead.medium}"`,
+        `"${lead.campaign.replace(/"/g, '""')}"`,
+        `"${lead.adId}"`,
+        `"${lead.mediaType}"`,
+        `"${lead.adTitle.replace(/"/g, '""')}"`,
+        `"${lead.adDescription.replace(/"/g, '""')}"`
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", "leads_exportados.csv");
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+     toast({
+        title: "Exportação Concluída",
+        description: `${filteredLeads.length} leads foram exportados com sucesso.`,
+      });
+  };
 
   const getStatusVariant = (status: LeadStatus): "default" | "secondary" | "destructive" => {
     switch (status) {
@@ -173,6 +250,39 @@ export default function EmbedLeadsPage({ params }: { params: { userId: string } 
           <CardTitle>Leads Recebidos</CardTitle>
         </CardHeader>
         <CardContent>
+           <div className="flex flex-wrap items-center gap-4 mb-4">
+              <Select value={campaignFilter} onValueChange={(value) => { setCampaignFilter(value); setCurrentPage(1); }}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filtrar por Campanha" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as Campanhas</SelectItem>
+                  {campaigns.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={channelFilter} onValueChange={(value) => { setChannelFilter(value); setCurrentPage(1); }}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filtrar por Canal" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os Canais</SelectItem>
+                  {channels.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+               <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value as LeadStatus | 'all'); setCurrentPage(1); }}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filtrar por Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os Status</SelectItem>
+                  {statuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Button onClick={handleExportCSV} variant="outline">
+                <Download className="mr-2 h-4 w-4" />
+                Exportar para CSV
+              </Button>
+            </div>
           <div className="overflow-x-auto pr-2 border rounded-lg">
           <TooltipProvider>
             <Table>
@@ -193,19 +303,19 @@ export default function EmbedLeadsPage({ params }: { params: { userId: string } 
               </TableHeader>
               <TableBody>
                 {isLoadingLeads ? (
-                   Array.from({ length: 5 }).map((_, index) => (
+                   Array.from({ length: 10 }).map((_, index) => (
                       <TableRow key={index}>
                         <TableCell colSpan={11}><Skeleton className="h-8 w-full" /></TableCell>
                       </TableRow>
                     ))
-                ) : leads.length === 0 ? (
+                ) : paginatedLeads.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={11} className="h-24 text-center">
-                      Nenhum lead encontrado...
+                       {allLeads.length > 0 ? 'Nenhum lead corresponde aos filtros selecionados.' : 'Nenhum lead encontrado...'}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  leads.map((lead) => {
+                  paginatedLeads.map((lead) => {
                     const crmUrl = formatCrmUrl(userSettings.whitelabelDomain!, lead.contactId);
                     return (
                     <TableRow key={lead.id}>
@@ -268,6 +378,29 @@ export default function EmbedLeadsPage({ params }: { params: { userId: string } 
             </Table>
             </TooltipProvider>
           </div>
+           <div className="flex items-center justify-end space-x-2 py-4">
+              <span className="text-sm text-muted-foreground">
+                Página {currentPage} de {totalPages > 0 ? totalPages : 1}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Anterior
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages || totalPages === 0}
+              >
+                Próxima
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
         </CardContent>
       </Card>
     </div>

@@ -29,6 +29,8 @@ interface Lead {
   receivedAt: Date;
   campaign: string;
   status: LeadStatus;
+  medium: string;
+  origin: string;
 }
 
 const COLORS = [
@@ -67,6 +69,8 @@ export default function EmbedAnalyticsPage({ params }: { params: { userId: strin
             receivedAt: (data.receivedAt as Timestamp)?.toDate() ?? new Date(),
             campaign: data.campaign || "Sem Campanha",
             status: data.status || "Aberto",
+            medium: data.medium || 'N/A',
+            origin: data.origin || 'N/A',
           });
         });
         setLeads(receivedLeads);
@@ -102,7 +106,27 @@ export default function EmbedAnalyticsPage({ params }: { params: { userId: strin
       counts[lead.campaign] = (counts[lead.campaign] || 0) + 1;
     });
     return Object.entries(counts)
-      .map(([name, value]) => ({ name, value, fill: COLORS[Math.floor(Math.random() * COLORS.length)] }))
+      .map(([name, value], index) => ({ name, value, fill: COLORS[index % COLORS.length] }))
+      .sort((a, b) => b.value - a.value);
+  }, [leads]);
+
+  const leadsByChannel = useMemo(() => {
+    const counts: { [key: string]: number } = {};
+    leads.forEach((lead) => {
+      counts[lead.medium] = (counts[lead.medium] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([name, value], index) => ({ name, value, fill: COLORS[index % COLORS.length] }))
+      .sort((a, b) => b.value - a.value);
+  }, [leads]);
+  
+  const leadsByOrigin = useMemo(() => {
+    const counts: { [key: string]: number } = {};
+    leads.forEach((lead) => {
+      counts[lead.origin] = (counts[lead.origin] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([name, value], index) => ({ name, value, fill: COLORS[index % COLORS.length] }))
       .sort((a, b) => b.value - a.value);
   }, [leads]);
 
@@ -137,7 +161,7 @@ export default function EmbedAnalyticsPage({ params }: { params: { userId: strin
     }
   }, [leads]);
 
-  const chartConfig = useMemo(() => {
+  const campaignChartConfig = useMemo(() => {
     const config: any = {};
     leadsByCampaign.forEach((campaign, index) => {
         config[campaign.name] = {
@@ -147,6 +171,28 @@ export default function EmbedAnalyticsPage({ params }: { params: { userId: strin
     });
     return config;
   }, [leadsByCampaign]);
+
+  const channelChartConfig = useMemo(() => {
+    const config: any = {};
+    leadsByChannel.forEach((channel, index) => {
+        config[channel.name] = {
+            label: channel.name,
+            color: COLORS[index % COLORS.length]
+        }
+    });
+    return config;
+  }, [leadsByChannel]);
+
+  const originChartConfig = useMemo(() => {
+    const config: any = {};
+    leadsByOrigin.forEach((origin, index) => {
+        config[origin.name] = {
+            label: origin.name,
+            color: COLORS[index % COLORS.length]
+        }
+    });
+    return config;
+  }, [leadsByOrigin]);
 
   const statusChartConfig = {
     value: { label: "Leads" },
@@ -255,7 +301,7 @@ export default function EmbedAnalyticsPage({ params }: { params: { userId: strin
           </CardContent>
         </Card>
         
-        <Card className="shadow-lg col-span-full">
+        <Card className="shadow-lg">
           <CardHeader>
             <CardTitle>Distribuição por Campanha</CardTitle>
             <CardDescription>
@@ -266,7 +312,7 @@ export default function EmbedAnalyticsPage({ params }: { params: { userId: strin
              {isLoading ? (
               <Skeleton className="h-[250px] w-[250px] rounded-full" />
             ) : (
-              <ChartContainer config={chartConfig} className="h-[250px] w-full max-w-[400px]">
+              <ChartContainer config={campaignChartConfig} className="h-[250px] w-full max-w-[400px]">
                   <PieChart>
                       <RechartsTooltip content={<ChartTooltipContent nameKey="name" hideIndicator />} />
                       <Pie
@@ -293,6 +339,82 @@ export default function EmbedAnalyticsPage({ params }: { params: { userId: strin
             )}
           </CardContent>
         </Card>
+        <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle>Distribuição por Canal</CardTitle>
+              <CardDescription>
+                Performance dos canais em volume de leads.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex justify-center">
+               {isLoading ? (
+                <Skeleton className="h-[250px] w-[250px] rounded-full" />
+              ) : (
+                <ChartContainer config={channelChartConfig} className="h-[250px] w-full max-w-[400px]">
+                    <PieChart>
+                        <RechartsTooltip content={<ChartTooltipContent nameKey="name" hideIndicator />} />
+                        <Pie
+                            data={leadsByChannel}
+                            dataKey="value"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={100}
+                        >
+                             <LabelList
+                                dataKey="value"
+                                className="fill-background"
+                                stroke="none"
+                                fontSize={12}
+                                />
+                        </Pie>
+                         <ChartLegend
+                            content={<ChartLegendContent nameKey="name" />}
+                            className="-translate-y-2 flex-wrap"
+                        />
+                    </PieChart>
+                </ChartContainer>
+              )}
+            </CardContent>
+          </Card>
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle>Distribuição por Origem</CardTitle>
+              <CardDescription>
+                Performance das origens em volume de leads.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex justify-center">
+               {isLoading ? (
+                <Skeleton className="h-[250px] w-[250px] rounded-full" />
+              ) : (
+                <ChartContainer config={originChartConfig} className="h-[250px] w-full max-w-[400px]">
+                    <PieChart>
+                        <RechartsTooltip content={<ChartTooltipContent nameKey="name" hideIndicator />} />
+                        <Pie
+                            data={leadsByOrigin}
+                            dataKey="value"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={100}
+                        >
+                             <LabelList
+                                dataKey="value"
+                                className="fill-background"
+                                stroke="none"
+                                fontSize={12}
+                                />
+                        </Pie>
+                         <ChartLegend
+                            content={<ChartLegendContent nameKey="name" />}
+                            className="-translate-y-2 flex-wrap"
+                        />
+                    </PieChart>
+                </ChartContainer>
+              )}
+            </CardContent>
+          </Card>
       </div>
     </div>
   );
