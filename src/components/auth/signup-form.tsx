@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import type { AuthError } from "firebase/auth";
+import type { AuthError, User } from "firebase/auth";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +20,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { signUpWithEmail, getFirebaseErrorMessage } from "@/lib/auth";
+import { db } from "@/lib/firebase";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
@@ -42,10 +44,22 @@ export function SignupForm() {
     },
   });
 
+  const createUserDocument = async (user: User, name: string) => {
+    const userDocRef = doc(db, "users", user.uid);
+    await setDoc(userDocRef, {
+      uid: user.uid,
+      email: user.email,
+      displayName: name,
+      createdAt: serverTimestamp(),
+    });
+  };
+
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     try {
-      await signUpWithEmail(values.email, values.password);
+      const userCredential = await signUpWithEmail(values.email, values.password);
+      await createUserDocument(userCredential.user, values.name);
+
       toast({
         title: "Conta criada com sucesso!",
         description: "Redirecionando para o painel.",
